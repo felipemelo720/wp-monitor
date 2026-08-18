@@ -41,8 +41,15 @@ export async function expectRenderedContent(page: Page, path: string): Promise<v
     /\S/
   );
 
-  const text = (await page.locator('body').innerText()).trim();
-  expect(text.length, `${path}: el body tiene ${text.length} caracteres de texto`).toBeGreaterThan(
-    100
-  );
+  // expect.poll y no una medición única: con el sitio bajo carga, el HTML llega
+  // por partes y en `domcontentloaded` puede haber solo la barra superior pintada.
+  // Medido en surdent /cotizar-producto/: 1419 caracteres en condiciones normales,
+  // 99 en una corrida con los dos sitios en paralelo. Ese falso positivo no era el
+  // sitio a medio romper, era el monitor mirando demasiado pronto.
+  await expect
+    .poll(async () => (await page.locator('body').innerText()).trim().length, {
+      timeout: 10_000,
+      message: `${path}: el body nunca llegó a tener texto (¿página en blanco?)`,
+    })
+    .toBeGreaterThan(100);
 }

@@ -5,6 +5,10 @@ import { expectNoPhpErrors } from '../checks/php.js';
 import { expectContains } from '../checks/content.js';
 import { watchConsole, expectNoBreakage } from '../checks/console.js';
 import { expectIndexable, expectRobotsAllowsCrawling, expectSitemapAlive } from '../checks/seo.js';
+import { expectWithinBudget } from '../checks/perf.js';
+import { expectCertNotExpiringSoon } from '../checks/tls.js';
+import { expectRestApiAlive } from '../checks/rest.js';
+import { expectLoginUsable } from '../checks/wp.js';
 import { contentStable } from '../lib/page.js';
 
 // Smoke por ruta. Un test por ruta y no uno por sitio: cuando algo falla, el
@@ -22,12 +26,13 @@ import { contentStable } from '../lib/page.js';
 for (const site of sites) {
   test.describe(site.name, { tag: `@${site.name}` }, () => {
     for (const path of site.paths) {
-      test(`${path} responde y renderiza`, async ({ page }) => {
+      test(`${path} responde y renderiza`, async ({ page }, testInfo) => {
         // Antes de navegar: los errores de un script del <head> ocurren durante
         // el goto y no hay forma de recuperarlos después.
         const watcher = watchConsole(page, activeMutes(site, path));
 
-        await gotoOk(page, path); // baseURL viene del project
+        const response = await gotoOk(page, path); // baseURL viene del project
+        expectWithinBudget(response, path, site.ttfbBudgetMs, testInfo);
         expectNoPhpErrors(await contentStable(page), path);
         await expectRenderedContent(page, path);
 
@@ -55,6 +60,18 @@ for (const site of sites) {
       // el robots.txt que bloquea todo, y el sitemap que dejó de generarse.
       await expectRobotsAllowsCrawling(request);
       await expectSitemapAlive(request);
+    });
+
+    test('el certificado TLS no está por vencer', async () => {
+      await expectCertNotExpiringSoon(site.baseURL);
+    });
+
+    test('la REST API de WordPress responde', async ({ request }) => {
+      await expectRestApiAlive(request);
+    });
+
+    test('el login de WordPress no está caído', async ({ page }) => {
+      await expectLoginUsable(page, site);
     });
   });
 }

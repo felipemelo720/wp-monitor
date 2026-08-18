@@ -84,6 +84,13 @@ export const SiteSchema = z
     mustContain: z.record(Path, z.string().min(1)).optional(),
     /** Login real, si un plugin de seguridad lo movió de /wp-login.php. */
     loginPath: Path.optional(),
+    /**
+     * Presupuesto de tiempo hasta el primer byte, por ruta.
+     * 5s por defecto: holgado a propósito. Esto no mide "rápido", mide "el
+     * servidor se está ahogando" — y un umbral ajustado convierte cada pico de
+     * tráfico en una alerta falsa, que es como se muere la confianza en el monitor.
+     */
+    ttfbBudgetMs: z.number().int().min(500).max(30_000).default(5_000),
     woo: WooSchema.optional(),
     knownIssues: z.array(KnownIssueSchema).optional(),
   })
