@@ -39,6 +39,11 @@ export const surdent = {
   knownIssues: [
     {
       match: 'wp is not defined',
+      // Solo estas cuatro: medido el 2026-08-17, el error NO aparece en
+      // /carrito/, /finalizar-compra/ ni /mi-cuenta/. Si mañana sale ahí, es
+      // una rotura nueva y tiene que fallar — que es justo lo que el silencio
+      // global de v1 no dejaba ver.
+      paths: ['/', '/tienda/', '/contacto/', '/cotizar-producto/'],
       expires: '2026-09-30',
       reason:
         'Bug preexistente de producción: un script se encola antes que wp-util. No rompe la compra ni el checkout. Silenciado hasta que se revise el orden de dependencias del theme.',

@@ -1,7 +1,10 @@
 import { test } from '@playwright/test';
-import { sites } from '../sites/index.js';
+import { sites, activeMutes } from '../sites/index.js';
 import { gotoOk, expectRenderedContent } from '../checks/http.js';
 import { expectNoPhpErrors } from '../checks/php.js';
+import { expectContains } from '../checks/content.js';
+import { watchConsole, expectNoBreakage } from '../checks/console.js';
+import { expectIndexable, expectRobotsAllowsCrawling, expectSitemapAlive } from '../checks/seo.js';
 import { contentStable } from '../lib/page.js';
 
 // Smoke por ruta. Un test por ruta y no uno por sitio: cuando algo falla, el
@@ -20,9 +23,22 @@ for (const site of sites) {
   test.describe(site.name, { tag: `@${site.name}` }, () => {
     for (const path of site.paths) {
       test(`${path} responde y renderiza`, async ({ page }) => {
+        // Antes de navegar: los errores de un script del <head> ocurren durante
+        // el goto y no hay forma de recuperarlos después.
+        const watcher = watchConsole(page, activeMutes(site, path));
+
         await gotoOk(page, path); // baseURL viene del project
         expectNoPhpErrors(await contentStable(page), path);
         await expectRenderedContent(page, path);
+
+        const needle = site.mustContain?.[path];
+        if (needle) await expectContains(page, path, needle);
+
+        await expectIndexable(page, path, site);
+
+        // Al final: los recursos lentos y los errores tardíos ya tuvieron su
+        // ventana, y así el reporte los junta todos en vez de cortar en el primero.
+        await expectNoBreakage(page, path, watcher);
       });
     }
 
@@ -32,6 +48,13 @@ for (const site of sites) {
       // renderizado ya no están, en la respuesta sí.
       const response = await request.get('/');
       expectNoPhpErrors(await response.text(), '/ (respuesta cruda)');
+    });
+
+    test('el sitio sigue siendo rastreable por Google', async ({ request }) => {
+      // Dos formas de desaparecer de Google que no se ven en ninguna página:
+      // el robots.txt que bloquea todo, y el sitemap que dejó de generarse.
+      await expectRobotsAllowsCrawling(request);
+      await expectSitemapAlive(request);
     });
   });
 }
