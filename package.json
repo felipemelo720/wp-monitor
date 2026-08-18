@@ -1,0 +1,21 @@
+{
+  "name": "wp-monitor",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Monitor E2E de sitios WordPress/WooCommerce. Corre por cron, avisa cuando algo se rompe.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "playwright test",
+    "typecheck": "tsc --noEmit",
+    "report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.0",
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.0",
+    "zod": "^3.24.0"
+  }
+}

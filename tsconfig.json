@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    // NodeNext: mismo resolutor que Node en ESM. Obliga a escribir la extensión
+    // ".js" en los imports relativos (aunque el archivo sea .ts). Playwright
+    // resuelve ambas formas, pero `npm run typecheck` solo acepta esta —
+    // y typecheck es lo que atrapa una config mal formada antes del cron.
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM"],
+    "types": ["node"],
+
+    // strict + noUncheckedIndexedAccess: un site.mustContain["/ruta/"] inexistente
+    // pasa a ser `string | undefined` en vez de `string`. Es exactamente el bug
+    // que en v1 hacía que un check no corriera y el smoke pasara en verde.
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true
+  },
+  "include": ["**/*.ts"],
+  "exclude": ["node_modules"]
+}
