@@ -63,6 +63,68 @@ export const WooSchema = z.object({
   sampleProduct: Path.optional(),
 });
 
+/**
+ * Plugins del sitio. Cada entrada enciende un bloque de tests genéricos: en v1
+ * esto eran dos archivos (clandent.spec.js y surdent.spec.js) 90% idénticos, y
+ * cada check nuevo había que escribirlo dos veces o quedaba cojo en un sitio.
+ *
+ * Lo que cambia entre tiendas son datos (qué buscar, qué pasarela, qué captcha),
+ * no lógica. Acá van los datos; la lógica vive en checks/ y los selectores en
+ * profiles/.
+ */
+export const PluginsSchema = z
+  .object({
+    /** Buscador AJAX de productos (FiboSearch). */
+    fibosearch: z
+      .object({
+        /**
+         * Término que SIEMPRE tiene que devolver resultados en esa tienda.
+         * Mínimo 4 letras: con 2 o 3 el buscador no dispara y el test mediría
+         * el debounce en vez del índice.
+         */
+        query: z.string().min(4),
+      })
+      .strict()
+      .optional(),
+
+    /** Formulario de contacto de Elementor Pro, con o sin captcha. */
+    contactForm: z
+      .object({
+        path: Path,
+        captcha: z.enum(['turnstile', 'recaptcha']).optional(),
+      })
+      .strict()
+      .optional(),
+
+    /** Checkout de Woo con los plugins fiscales chilenos. */
+    checkout: z
+      .object({
+        /**
+         * Texto que identifica a la pasarela en el checkout, como regex.
+         * Si el plugin se desregistra con un update, el cliente llega hasta acá
+         * y no puede pagar: no hay ningún otro síntoma en el sitio.
+         */
+        gateway: z
+          .string()
+          .min(3)
+          .refine((source) => {
+            try {
+              new RegExp(source, 'i');
+              return true;
+            } catch {
+              return false;
+            }
+          }, 'no es una expresión regular válida'),
+        /** Campo RUT del plugin fiscal: sin él, o nadie compra o los pedidos salen sin RUT. */
+        rutField: z.boolean().default(true),
+        /** Selects región/comuna dependientes: si su JS muere, el checkout es incompletable. */
+        regionSelect: z.boolean().default(true),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict();
+
 export const SiteSchema = z
   .object({
     /** Identificador corto. Es el nombre del project de Playwright y del lock del cron. */
@@ -92,6 +154,7 @@ export const SiteSchema = z
      */
     ttfbBudgetMs: z.number().int().min(500).max(30_000).default(5_000),
     woo: WooSchema.optional(),
+    plugins: PluginsSchema.optional(),
     knownIssues: z.array(KnownIssueSchema).optional(),
   })
   .strict() // una key con typo ("mustContains") sería una config que no hace nada
@@ -143,6 +206,27 @@ export const SiteSchema = z
           message: `"${value}" no está en paths: el smoke no lo recorrería`,
         });
       }
+    }
+
+    // El formulario de contacto se testea sobre una ruta que el smoke ya recorre:
+    // si no está en paths, nadie verificó que esa página siquiera cargue.
+    const formPath = site.plugins?.contactForm?.path;
+    if (formPath && !paths.has(formPath)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['plugins', 'contactForm', 'path'],
+        message: `"${formPath}" no está en paths`,
+      });
+    }
+
+    // Sin rutas de Woo no hay checkout que probar: la config diría que sí y los
+    // tests no tendrían dónde ir.
+    if (site.plugins?.checkout && !site.woo) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['plugins', 'checkout'],
+        message: 'hay checkout configurado pero el sitio no declara woo',
+      });
     }
 
     for (const [i, issue] of (site.knownIssues ?? []).entries()) {

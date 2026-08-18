@@ -25,4 +25,10 @@ export const clandent = {
     checkoutPath: '/finalizar-compra/',
     sampleProduct: '/producto/abreboca-adulto-medio-con-retractor-lingual/',
   },
+
+  plugins: {
+    fibosearch: { query: 'guantes' },
+    contactForm: { path: '/contactanos/', captcha: 'turnstile' },
+    checkout: { gateway: 'webpay|transbank' },
+  },
 } satisfies SiteInput;

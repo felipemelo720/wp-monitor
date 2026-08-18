@@ -36,6 +36,15 @@ export const surdent = {
     sampleProduct: '/producto/bacteria-filter-vs300/',
   },
 
+  // Mismo stack que clandent salvo el captcha: acá es reCAPTCHA. El checkout
+  // además pide crear cuenta (11+ campos requeridos), lo que no cambia el test:
+  // el submit vacío se rechaza igual.
+  plugins: {
+    fibosearch: { query: 'bacteria' },
+    contactForm: { path: '/contacto/', captcha: 'recaptcha' },
+    checkout: { gateway: 'webpay|transbank' },
+  },
+
   knownIssues: [
     {
       match: 'wp is not defined',
