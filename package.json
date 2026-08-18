@@ -10,7 +10,10 @@
   "scripts": {
     "test": "playwright test",
     "typecheck": "tsc --noEmit",
-    "report": "playwright show-report"
+    "report": "playwright show-report",
+    "visual": "playwright test --project=clandent-visual --project=surdent-visual",
+    "visual:update": "playwright test --project=clandent-visual --project=surdent-visual --update-snapshots",
+    "check": "bash bin/check.sh"
   },
   "devDependencies": {
     "@playwright/test": "^1.56.0",

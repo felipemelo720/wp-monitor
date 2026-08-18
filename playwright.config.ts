@@ -24,7 +24,10 @@ export default defineConfig({
   // reportando verde. En CI/cron eso es un monitor mudo, no un test que pasa.
   forbidOnly: !!process.env.CI || inContainer,
   // El HTML siempre: es donde se ve el trace y el antes/después cuando algo falla.
-  reporter: [['list'], ['html', { open: 'never' }]],
+  // json a un archivo fijo: bin/notify.ts lo lee para armar la alerta con el
+  // nombre exacto del test y el primer renglón del error, no con la cola cruda
+  // del log de v1 (que en el mejor caso decía "algo falló" sin decir qué).
+  reporter: [['list'], ['html', { open: 'never' }], ['json', { outputFile: 'reports/last.json' }]],
   timeout: 45_000,
   expect: { timeout: 10_000 },
   use: {
@@ -56,7 +59,7 @@ export default defineConfig({
     ...sites.map((site) => ({
       name: site.name,
       dependencies: ['base'],
-      testIgnore: ['sanity.spec.ts', 'config.spec.ts', 'checks.spec.ts'],
+      testIgnore: ['sanity.spec.ts', 'config.spec.ts', 'checks.spec.ts', 'visual.spec.ts'],
       // El tag @nombre lo pone cada describe. Con la lookahead, "@clandent" no
       // matchea "@clandent-b2b": el filtro es exacto y los tests de los otros
       // sitios no aparecen ni como "skipped". Reemplaza al `--grep <nombre>` de
@@ -67,6 +70,18 @@ export default defineConfig({
         // dominio mal escrito deja de ser algo que se pueda copiar y pegar mal.
         baseURL: site.baseURL,
       },
+    })),
+
+    // La regresión visual, un project aparte por sitio. Nunca corre junto al
+    // smoke ni comparte su lock/monitor de Kuma (ver check.sh): un diff de layout
+    // del 2% es "andá a mirar", no "el sitio está caído", y mezclar las dos
+    // señales degrada la que ya funciona.
+    ...sites.map((site) => ({
+      name: `${site.name}-visual`,
+      dependencies: ['base'],
+      testMatch: ['visual.spec.ts'],
+      grep: new RegExp(`@${site.name}(?![a-z0-9-])`),
+      use: { baseURL: site.baseURL },
     })),
   ],
 });
