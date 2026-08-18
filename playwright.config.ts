@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
+import { sites } from './sites/index.js';
 
 // WPM_CONTAINER=1 va en el crontab del CT de Proxmox. Dos problemas del LXC
 // unprivileged, ninguno presente en un desktop:
@@ -39,5 +40,33 @@ export default defineConfig({
     userAgent:
       'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36 wp-monitor/2.0',
   },
-  // Los projects por sitio se generan en la fase 1C, desde sites/index.ts.
+  projects: [
+    // "base": todo lo que no toca la red — entorno y schema. Es dependencia de
+    // los sitios, así que si el monitor está roto (Chromium que no levanta en el
+    // LXC, config inválida) los projects de sitio NI SIQUIERA CORREN. La alerta
+    // dice "el monitor está roto", que es distinto de "el sitio está caído":
+    // en v1 los dos casos llegaban como el mismo correo rojo.
+    {
+      name: 'base',
+      testMatch: ['sanity.spec.ts', 'config.spec.ts', 'checks.spec.ts'],
+    },
+
+    // Un project por sitio, generado desde la config. Agregar una tienda es
+    // agregar un archivo en sites/ — acá no se toca nada.
+    ...sites.map((site) => ({
+      name: site.name,
+      dependencies: ['base'],
+      testIgnore: ['sanity.spec.ts', 'config.spec.ts', 'checks.spec.ts'],
+      // El tag @nombre lo pone cada describe. Con la lookahead, "@clandent" no
+      // matchea "@clandent-b2b": el filtro es exacto y los tests de los otros
+      // sitios no aparecen ni como "skipped". Reemplaza al `--grep <nombre>` de
+      // v1, que mezclaba sitios con nombres parecidos y falseaba el push a Kuma.
+      grep: new RegExp(`@${site.name}(?![a-z0-9-])`),
+      use: {
+        // Con esto los tests piden rutas ('/tienda/'), no URLs completas: un
+        // dominio mal escrito deja de ser algo que se pueda copiar y pegar mal.
+        baseURL: site.baseURL,
+      },
+    })),
+  ],
 });
