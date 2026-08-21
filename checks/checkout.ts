@@ -81,6 +81,24 @@ export async function expectCheckoutMachineryWorks(
     const regions = await page.locator(`${s.state} option`).count();
     expect(regions, 'el select de regiones está casi vacío').toBeGreaterThan(10);
 
+    // El checkout dispara SU PROPIO update_order_review al cargar la página
+    // (recalcula con la región por defecto), antes de que este test llegue acá.
+    // Si no se deja terminar, ese request viejo queda flotando: el listener de
+    // abajo se arma después de que ya pasó y nunca lo ve — no es que el cambio
+    // de región no dispare nada, es que estábamos esperando el request equivocado.
+    await page.waitForLoadState('networkidle', { timeout: 8_000 }).catch(() => {});
+
+    // Distingue, si esto falla, DOS roturas que desde afuera se ven idénticas:
+    // que el change de región no dispare ningún request (binding roto entre
+    // selectWoo y el checkout) vs que sí lo dispare y el servidor no conteste
+    // a tiempo (mismo síntoma que un TTFB alto en el mismo run — servidor
+    // ahogado, no checkout roto).
+    let requestFired = false;
+    const onRequest = (req: import('@playwright/test').Request): void => {
+      if (req.url().includes(wooSelectors.updateOrderReview)) requestFired = true;
+    };
+    page.on('request', onRequest);
+
     // 30s: este AJAX recalcula envíos e impuestos contra una tienda que ya está
     // atendiendo al resto de la corrida. Con 20s fallaba por lento, no por roto.
     const review = page.waitForResponse((r) => r.url().includes(wooSelectors.updateOrderReview), {
@@ -90,7 +108,17 @@ export async function expectCheckoutMachineryWorks(
     // igual setea el valor y dispara el change que select2 y el checkout escuchan.
     await page.locator(s.state).selectOption({ index: 8 }, { force: true });
 
-    const reviewResponse = await review;
+    let reviewResponse;
+    try {
+      reviewResponse = await review;
+    } catch {
+      const diag = requestFired
+        ? 'salió el request pero no volvió en 30s: servidor lento/ahogado'
+        : 'ningún request salió: el change de región no está disparando el recálculo';
+      throw new Error(`update_order_review no respondió al cambiar de región — ${diag}`);
+    } finally {
+      page.off('request', onRequest);
+    }
     expect(reviewResponse.status(), 'update_order_review falló: el checkout no recalcula').toBe(200);
 
     await expect

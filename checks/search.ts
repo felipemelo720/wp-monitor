@@ -38,6 +38,17 @@ export async function expectSearchIndexAlive(
 export async function expectSearchBoxSuggests(page: Page, query: string): Promise<void> {
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
+  // Popups de Elementor (promos de "ofertas") se muestran una vez por SESIÓN —
+  // cada test arranca un contexto nuevo, así que le toca siempre, tapando el
+  // header. Un visitante real lo cierra o hace clic afuera; acá se cierra
+  // explícito para medir el buscador, no el popup. Sin popup esta vez: el
+  // timeout corto se come el error y seguimos.
+  await page
+    .locator('.dialog-close-button')
+    .first()
+    .click({ timeout: 3_000 })
+    .catch(() => {});
+
   const input = page.locator(fibosearch.input).first();
   await expect(input, 'no hay caja de búsqueda visible en el header').toBeVisible();
 
